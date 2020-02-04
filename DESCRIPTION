@@ -1,0 +1,18 @@
+Package: archivesXMLtoCSV
+Type: Package
+Title: archivesXMLtoCSV
+Version: 0.1.0
+Author: Kirill Kalinin
+Maintainer: The package maintainer <kkalinin@umich.edu>
+Description: The package helps to convert the EAD XML data into the table using XPath expressions.
+License: GPL-3
+Encoding: UTF-8
+RoxygenNote: 6.1.1
+Imports:
+      xml2,
+      plyr
+Suggests: 
+      testthat (>= 2.1.0),
+      knitr,
+      rmarkdown
+VignetteBuilder: knitr
