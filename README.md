@@ -62,4 +62,4 @@ Seventh, now we can save coverted XML results into a *.csv* file:
     
     write.csv(filedata, "C:/data_from_xml_to_csv.csv")
 
-For processing multiple files all you need is to obtain the vector file names and pass them to the function using *filename* parameter.  You can also define additional parameter *excludeFiles* with vector of filenames excluded from XML to CSV conversion.
+For processing multiple files all you need is to obtain the vector file names and pass them to the function using *filename* parameter.  You can also use additional *excludeFiles* parameter  by  passing the vector of filenames excluded from XML to CSV conversion.
