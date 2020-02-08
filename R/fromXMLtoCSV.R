@@ -1,11 +1,11 @@
 #' @title XML to CSV conversion function
 #' @description The package helps to convert the EAD XML data into the table using XPath expressions. Define item nodes (i.e. files, items etc.) and collection nodes (information about collection) to extract the data.
-#' @param filename name of XML file.
+#' @param filename name of XML file or vector of XML filenames.
 #' @param item_nodes list of item nodes defining path, vector of nodes and node types (text/attrs).
 #' @param collection_nodes list of collection nodes defining path, vector of nodes and vector of node types (text/attrs).
+#' @param excludeFiles vector of filenames excluded from XML to CSV conversion.
+#' @param ... auxiliary parameters.
 #' @export
-#' @import xml2
-#' @import plyr
 #' @return Returns the dataframe object with rows (observations matching item/collection nodes) and columns (item nodes).
 #' @examples
 #' item_nodes = list(path = "(//c)|(//c01)|(//c02)|(//c03)",
@@ -20,125 +20,48 @@
 #' filedata <- fromXMLtoCSV(system.file("rusdata.xml", package="archivesXMLtoCSV"),
 #'                          item_nodes, collection_nodes)
 
+fromXMLtoCSV <- function(filename, item_nodes, collection_nodes, excludeFiles=NULL, ...){
 
+  if (is.vector(filename) & length(filename)>1){
 
+    counter <- 1
+    bigdataRows <- 1
+    bigdataCols <- 1
 
-fromXMLtoCSV <- function(filename,  item_nodes, collection_nodes){
+    bigdata<-data.frame(matrix(NA, bigdataRows, bigdataCols))
 
-  nodeExtract <- function(data, extract_formula, path=FALSE,  types){
-    if(extract_formula=="primarynode"){node_attr <- xml_attrs(data)}else{
-      if(types=="text"){node_attr <- xml_text(xml_find_first(data, extract_formula))}
-      if(types=="attrs"){node_attr <- xml_attrs(xml_find_first(data, extract_formula))}
-    }
-    node_names <- unique(unlist(lapply(node_attr, function(x){names(x)})))
-    if(length(node_names)>1){
-      node_attr2 <- lapply(node_attr, function(x){
-        re_list <- rep(NA, length(node_names))
-        for(i in 1:length(node_names)){
-          if(node_names[i]%in%names(x)){re_list[i] <- x[names(x)%in%node_names[i]]}
-        }
-        return(re_list)})
-      node_res <- data.frame(matrix(unlist(node_attr2), ncol=length(node_names), byrow=T), stringsAsFactors = FALSE)}else{
-        node_res <- node_attr
+    for (iter in 1:length(filename)){
+
+      if(!is.null(excludeFiles)){
+        if(filename[iter]%in%excludeFiles) next
       }
-    if(is.data.frame(node_res)){colnames(node_res) <-
-      sapply(1:length(node_res),
-             function(x) paste(gsub("[^[:alnum:]]", "", extract_formula),
-                               types, x, sep="."))}else{
-                                 names(node_res) <- paste(gsub("[^[:alnum:]]", "", extract_formula),
-                                                          types, sep=".")}
-    return(node_res)}
 
-  collectionExtract <- function(data, extract_formula, path=FALSE,  types){
-    if(path==TRUE){node_attr <- xml_attrs(data)}else{
-      if(types=="text"){node_attr <- xml_text(xml_find_first(data, extract_formula))}
-      if(types=="attrs"){node_attr <- xml_attrs(xml_find_first(data, extract_formula))}
-    }
-    node_names <- unique(unlist(lapply(node_attr, function(x){names(x)})))
-    if(length(node_names)>1){
-      node_attr2 <- lapply(node_attr, function(x){
-        re_list <- rep(NA, length(node_names))
-        for(i in 1:length(node_names)){
-          if(node_names[i]%in%names(x)){re_list[i] <- x[names(x)%in%node_names[i]]}
-        }
-        return(re_list)})
-      node_res <- data.frame(matrix(unlist(node_attr2),
-                                    ncol=length(node_names), byrow=T),
-                             stringsAsFactors = FALSE)}else{
-                               node_res <- node_attr
-                             }
-    if(is.data.frame(node_res)){
-      if(dim(node_res)[2]>1){colnames(node_res) <- sapply(1:length(node_res),
-                                                          function(x) paste(gsub("[^[:alnum:]]", "",
-                                                                                 extract_formula), types, x, sep="."))}}else{
-                                                                                   names(node_res) <- paste(gsub("[^[:alnum:]]", "", extract_formula), types, sep=".")}
-    return(node_res)}
+      print(paste("index: ", iter, "  filename: ", filename[iter], sep=""))
+      dat_frag <- convXMLtoCSV(filename[iter], item_nodes, collection_nodes);
 
-  fromListtoDataFrame <- function(any_list){
-    num_cols <- Reduce("+",
-                       lapply(any_list, function(x){d <- dim(x)[2]; d[is.null(d)] <- 1; return(d)}))
-    if(is.data.frame(any_list[[1]])){num_rows <- nrow(any_list[[1]])}else{num_rows <- length(any_list[[1]])}
+      if(iter==1){hnames<-colnames(dat_frag)}
 
-    any_data.frame <- data.frame(matrix(NA, num_rows, num_cols))
+      for(iter2 in 1:dim(dat_frag)[2]){
+        if(!names(dat_frag)[iter2]%in%hnames){
+          hnames<-c(hnames, names(dat_frag)[iter2])}
 
-    cnames=vector()
-    extr_names <- sapply(1:length(any_list),
-                         function(x){
-                           if(is.data.frame(any_list[[x]])){
-                             cnames=c(cnames, colnames(any_list[[x]]))
-                           }else{cnames=c(cnames, names(any_list[[x]][1]))}
-                         })
-    if(any(unlist(lapply(extr_names,function(x)length(x)==0)))){extr_names <- names(any_list)}
-    i=1; c=1
-    while(i<=length(any_list)){
-      d <- any_list[[i]]
-      if(is.data.frame(d)){any_data.frame[,c:(c+dim(d)[2])] <- d; c=c+dim(d)[2]}else{
-        if(is.list(d)){
-          d <- unlist(lapply(d, function(x) if(length(x)==0) return(NA) else(x)))
-        }
-        any_data.frame[,c] <- d; c=c+1}
-      i=i+1
-    }
-    colnames(any_data.frame) <- unlist(extr_names)
-    return(any_data.frame)
-  }
+        bigdata[counter:((counter+dim(dat_frag)[1])-1),
+                which(hnames%in%names(dat_frag)[iter2])] <- dat_frag[,iter2]
 
+      }
 
-  xmldata <- xml_ns_strip(read_xml(filename, as_html = FALSE, options = "NOBLANKS"))
+      counter=counter+dim(dat_frag)[1]
 
-
-  collection_node_data <- xml_find_all(xmldata, collection_nodes$path)
-  collection_list <- list()
-  collection_list <- sapply(1:length(collection_nodes$nodes), function(x)
-    collection_list[[x]] <- collectionExtract(collection_node_data,
-                                              extract_formula=collection_nodes$nodes[x],
-                                              types=collection_nodes$types[x]))
-  collection_list <- lapply(collection_list, function(x) if(length(x)==0) return(NA)else(x))
-  collection_data.frame <- fromListtoDataFrame(collection_list)
-  collection_data.frame$level="collection"
-
-  items_node_data <- xml_find_all(xmldata, item_nodes$path)
-
-  if(length(items_node_data)!=0){
-    items_list <- lapply(1:length(item_nodes$nodes), function(x)
-      nodeExtract(items_node_data,
-                  extract_formula=item_nodes$nodes[x],
-                  types=item_nodes$types[x],
-                  path=item_nodes$path[x]))
-
-    items_data.frame <- fromListtoDataFrame(items_list)
-
-    colnames(items_data.frame)%in%colnames(collection_data.frame)}else{
-      items_data.frame=data.frame()
+      gc()
     }
 
-  extracted_data <- rbind.fill(collection_data.frame, items_data.frame)
-  extracted_data <- data.frame(filename, extracted_data, stringsAsFactors = FALSE)
-  extracted_data$level <- as.character(extracted_data$level)
+    colnames(bigdata) <- hnames
+    extracted_data <- bigdata[!is.na(bigdata[,1]),];bigdata <- bigdata[,!is.na(colnames(bigdata))]
+  }else{
+    print(paste("index: ", 1, "  filename: ", filename, sep=""))
 
-  if(any(apply(items_data.frame, 2, function(x) any(grepl("^file|^item|^series", x))))){
-    extracted_data$level[2:length(extracted_data$level)] <-  items_data.frame[,
-                                                                              which.max(apply(items_data.frame, 2, function(x)
-                                                                                sum(grepl("^file|^item|^series", x))))]
+    extracted_data <- convXMLtoCSV(filename=filename,
+                                   item_nodes=item_nodes,
+                                   collection_nodes=collection_nodes)
   }
   return(extracted_data)}
